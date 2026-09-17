@@ -3,3 +3,5 @@ KCCdata
 .venv
 skills-lock.json
 cleanKccData
+.env
+contents
