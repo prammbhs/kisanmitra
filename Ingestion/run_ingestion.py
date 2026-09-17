@@ -26,6 +26,8 @@ def main():
                         help="Chunk size for RecursiveCharacterTextSplitter (default: 1200)")
     parser.add_argument("--chunk-overlap", type=int, default=200,
                         help="Chunk overlap for RecursiveCharacterTextSplitter (default: 200)")
+    parser.add_argument("--encoding", default="utf-8",
+                        help="Encoding for reading/writing documents and JSONL batches (default: utf-8)")
 
     args = parser.parse_args()
 
@@ -47,7 +49,8 @@ def main():
             output_dir=r"d:\kisanmitra\Ingestion\books",
             chunk_size=args.chunk_size,
             chunk_overlap=args.chunk_overlap,
-            batch_size=args.books_batch_size
+            batch_size=args.books_batch_size,
+            encoding=args.encoding
         )
 
 if __name__ == "__main__":
