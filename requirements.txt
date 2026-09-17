@@ -1,0 +1,7 @@
+# KisanMitra Ingestion & RAG Pipeline Dependencies
+langchain>=0.1.0
+langchain-community>=0.0.20
+langchain-text-splitters>=0.0.1
+pypdf>=4.0.0
+pandas>=2.0.0
+requests>=2.31.0

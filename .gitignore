@@ -5,3 +5,6 @@ skills-lock.json
 cleanKccData
 .env
 contents
+*.pyc
+books_test
+*.jsonl
