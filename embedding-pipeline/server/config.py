@@ -19,6 +19,11 @@ if PREFERRED_DEVICE in ["cuda", "cpu"]:
 else:
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+# GPU Optimization Settings (FlashAttention / PyTorch SDPA & FP16)
+USE_FP16 = os.getenv("USE_FP16", "true").lower() == "true"
+ATTN_IMPLEMENTATION = os.getenv("ATTN_IMPLEMENTATION", "sdpa")  # "sdpa", "flash_attention_2", or "eager"
+
+
 # Storage Settings (EBS ChromaDB)
 CHROMA_PATH = os.getenv("CHROMA_PATH", "/mnt/chroma")
 ALLOWED_COLLECTIONS = ["kcc_docs", "other_docs"]
