@@ -24,12 +24,14 @@ class EmbeddingModelManager:
             cls._instance = cls()
         return cls._instance
 
-    def encode_texts(self, texts: List[str]) -> List[List[float]]:
+    def encode_texts(self, texts: List[str], device: Optional[str] = None) -> List[List[float]]:
         """
         Encode a list of text strings into 1024-dim embeddings using BGE-M3.
         """
         if not texts:
             return []
+
+        target_device = device if device else self.device
 
         # Sanitize text input to valid utf-8 strings
         clean_texts = [
@@ -39,7 +41,8 @@ class EmbeddingModelManager:
 
         embeddings = self.model.encode(
             clean_texts,
-            batch_size=self.gpu_batch_size,
+            device=target_device,
+            batch_size=self.gpu_batch_size if target_device != "cpu" else 16,
             normalize_embeddings=True,
             show_progress_bar=False,
             convert_to_numpy=True
@@ -50,3 +53,14 @@ class EmbeddingModelManager:
             raise ValueError(f"Expected embedding dimension 1024 from BGE-M3, but got {dim}")
 
         return embeddings.tolist()
+
+    def encode_query(self, query: str, device: str = "cpu") -> List[float]:
+        """
+        Encode a single query string into a 1024-dim embedding vector in CPU mode.
+        """
+        if not query or not query.strip():
+            raise ValueError("Query string cannot be empty")
+
+        res = self.encode_texts([query], device=device)
+        return res[0]
+

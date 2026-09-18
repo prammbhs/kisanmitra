@@ -61,6 +61,18 @@ class EmbedResponse(BaseModel):
     processing_time_sec: float
     items: List[ItemResult]
 
+class QueryRequest(BaseModel):
+    query: str = Field(..., description="Query text string to embed in CPU mode")
+
+class QueryResponse(BaseModel):
+    status: str
+    query: str
+    embedding: List[float]
+    dimension: int
+    device: str
+    processing_time_sec: float
+
+
 @app.get("/health")
 def health_check():
     db_mgr = ChromaDBManager.get_instance()
@@ -136,6 +148,34 @@ def embed_batch(request: EmbedRequest):
         print(f"[ERROR] Exception during /embed processing: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/query", response_model=QueryResponse, dependencies=[Depends(verify_token)])
+def query_embedding(request: QueryRequest):
+    if not request.query or not request.query.strip():
+        raise HTTPException(status_code=400, detail="Query text string cannot be empty")
+
+    start_t = time.time()
+
+    try:
+        model_mgr = EmbeddingModelManager.get_instance()
+        embedding = model_mgr.encode_query(request.query, device="cpu")
+        elapsed = time.time() - start_t
+
+        stats_counter["total_requests"] += 1
+        stats_counter["total_processing_time_seconds"] += elapsed
+
+        return QueryResponse(
+            status="success",
+            query=request.query,
+            embedding=embedding,
+            dimension=len(embedding),
+            device="cpu",
+            processing_time_sec=round(elapsed, 4),
+        )
+    except Exception as e:
+        print(f"[ERROR] Exception during /query processing: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
+
     import uvicorn
     uvicorn.run(app, host=HOST, port=PORT)
