@@ -8,3 +8,5 @@ contents
 *.pyc
 books_test
 *.jsonl
+projectstrucure.md
+checkpoints
