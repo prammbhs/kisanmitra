@@ -9,18 +9,19 @@ class ChromaDBManager:
     def __init__(self, chroma_path: str = CHROMA_PATH):
         self.chroma_path = os.path.abspath(chroma_path)
         os.makedirs(self.chroma_path, exist_ok=True)
-        print(f"[INIT] Initializing ChromaDB PersistentClient at path '{self.chroma_path}'...")
+        print(f"[INIT] Initializing ChromaDB PersistentClient at EBS path '{self.chroma_path}'...")
         
+        # Initialize PersistentClient on EBS volume at startup
         self.client = chromadb.PersistentClient(path=self.chroma_path)
         self.collections: Dict[str, Any] = {}
 
-        # Pre-initialize allowed collections (kcc_docs and other_docs)
+        # Pre-initialize target collections (kcc_docs and other_docs)
         for col_name in ALLOWED_COLLECTIONS:
             self.collections[col_name] = self.client.get_or_create_collection(
                 name=col_name,
                 metadata={"hnsw:space": "cosine"}
             )
-        print(f"[INIT] ChromaDB ready with collections: {list(self.collections.keys())}")
+            print(f"[INIT] ChromaDB collection '{col_name}' ready (count: {self.collections[col_name].count()})")
 
     @classmethod
     def get_instance(cls) -> "ChromaDBManager":
@@ -53,7 +54,7 @@ class ChromaDBManager:
 
         col = self._get_collection(collection_name)
 
-        # Sanitize metadata values for Chroma compatibility (prune None, convert lists to strings if needed)
+        # Sanitize metadata values for Chroma compatibility
         sanitized_metadatas = []
         for m in metadatas:
             clean_m = {}

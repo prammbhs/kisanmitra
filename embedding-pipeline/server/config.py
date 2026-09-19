@@ -1,5 +1,4 @@
 import os
-import torch
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,21 +7,12 @@ load_dotenv()
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
-# Embedding Model settings
-MODEL_NAME = os.getenv("MODEL_NAME", "BAAI/bge-m3")
-GPU_BATCH_SIZE = int(os.getenv("GPU_BATCH_SIZE", "32"))
-
-# Device auto-detection
-PREFERRED_DEVICE = os.getenv("DEVICE", "").lower()
-if PREFERRED_DEVICE in ["cuda", "cpu"]:
-    DEVICE = PREFERRED_DEVICE
-else:
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-# GPU Optimization Settings (FlashAttention / PyTorch SDPA & FP16)
-USE_FP16 = os.getenv("USE_FP16", "true").lower() == "true"
-ATTN_IMPLEMENTATION = os.getenv("ATTN_IMPLEMENTATION", "sdpa")  # "sdpa", "flash_attention_2", or "eager"
-
+# AWS Bedrock & Model settings
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "amazon.titan-embed-text-v2:0")
+EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "1024"))
+NORMALIZE_EMBEDDINGS = os.getenv("NORMALIZE_EMBEDDINGS", "True").lower() == "true"
+BEDROCK_MAX_WORKERS = int(os.getenv("BEDROCK_MAX_WORKERS", "10"))
 
 # Storage Settings (EBS ChromaDB)
 CHROMA_PATH = os.getenv("CHROMA_PATH", "/mnt/chroma")

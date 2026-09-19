@@ -5,8 +5,17 @@ from fastapi import FastAPI, HTTPException, Security, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
-from server.config import HOST, PORT, MODEL_NAME, DEVICE, CHROMA_PATH, EMBEDDING_API_KEY, ALLOWED_COLLECTIONS
-from server.model import EmbeddingModelManager
+from server.config import (
+    HOST,
+    PORT,
+    AWS_REGION,
+    BEDROCK_MODEL_ID,
+    EMBEDDING_DIMENSIONS,
+    CHROMA_PATH,
+    EMBEDDING_API_KEY,
+    ALLOWED_COLLECTIONS,
+)
+from server.model import BedrockTitanEmbeddingManager
 from server.database import ChromaDBManager
 
 # Runtime Statistics tracking
@@ -28,16 +37,16 @@ def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(s
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[SERVER] Starting FastAPI Embedding Server...")
-    EmbeddingModelManager.get_instance()
+    print("[SERVER] Starting FastAPI CPU Embedding Server (AWS Bedrock Titan V2)...")
+    BedrockTitanEmbeddingManager.get_instance()
     ChromaDBManager.get_instance()
     yield
-    print("[SERVER] Shutting down FastAPI Embedding Server...")
+    print("[SERVER] Shutting down FastAPI CPU Embedding Server...")
 
 app = FastAPI(
-    title="AWS GPU BGE-M3 Embedding Server",
-    description="FastAPI service for bulk text embedding with BGE-M3 on GPU and persistent storage in ChromaDB on EBS",
-    version="1.0.0",
+    title="AWS Bedrock Titan V2 Embedding Server",
+    description="FastAPI service for bulk text embedding with Amazon Titan Text Embeddings V2 via AWS Bedrock, persisting into ChromaDB on EBS",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -61,26 +70,16 @@ class EmbedResponse(BaseModel):
     processing_time_sec: float
     items: List[ItemResult]
 
-class QueryRequest(BaseModel):
-    query: str = Field(..., description="Query text string to embed in CPU mode")
-
-class QueryResponse(BaseModel):
-    status: str
-    query: str
-    embedding: List[float]
-    dimension: int
-    device: str
-    processing_time_sec: float
-
-
 @app.get("/health")
 def health_check():
     db_mgr = ChromaDBManager.get_instance()
     counts = {col: db_mgr.get_collection_count(col) for col in ALLOWED_COLLECTIONS}
     return {
         "status": "ok",
-        "model": MODEL_NAME,
-        "device": DEVICE,
+        "provider": "AWS Bedrock",
+        "model": BEDROCK_MODEL_ID,
+        "region": AWS_REGION,
+        "dimensions": EMBEDDING_DIMENSIONS,
         "chroma_path": CHROMA_PATH,
         "collections": counts,
     }
@@ -112,10 +111,10 @@ def embed_batch(request: EmbedRequest):
     metadatas = [item.metadata for item in request.items]
 
     try:
-        model_mgr = EmbeddingModelManager.get_instance()
+        model_mgr = BedrockTitanEmbeddingManager.get_instance()
         db_mgr = ChromaDBManager.get_instance()
 
-        # 1. Encode text via BGE-M3 (1024-dim normalized)
+        # 1. Encode text via AWS Bedrock Titan Text Embeddings V2
         embeddings = model_mgr.encode_texts(texts)
 
         # 2. Store directly into ChromaDB on EBS
@@ -148,34 +147,6 @@ def embed_batch(request: EmbedRequest):
         print(f"[ERROR] Exception during /embed processing: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/query", response_model=QueryResponse, dependencies=[Depends(verify_token)])
-def query_embedding(request: QueryRequest):
-    if not request.query or not request.query.strip():
-        raise HTTPException(status_code=400, detail="Query text string cannot be empty")
-
-    start_t = time.time()
-
-    try:
-        model_mgr = EmbeddingModelManager.get_instance()
-        embedding = model_mgr.encode_query(request.query, device="cpu")
-        elapsed = time.time() - start_t
-
-        stats_counter["total_requests"] += 1
-        stats_counter["total_processing_time_seconds"] += elapsed
-
-        return QueryResponse(
-            status="success",
-            query=request.query,
-            embedding=embedding,
-            dimension=len(embedding),
-            device="cpu",
-            processing_time_sec=round(elapsed, 4),
-        )
-    except Exception as e:
-        print(f"[ERROR] Exception during /query processing: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 if __name__ == "__main__":
-
     import uvicorn
     uvicorn.run(app, host=HOST, port=PORT)

@@ -1,91 +1,88 @@
+import json
 import time
-from typing import List, Optional
-import torch
-from sentence_transformers import SentenceTransformer
-from server.config import MODEL_NAME, DEVICE, GPU_BATCH_SIZE, USE_FP16, ATTN_IMPLEMENTATION
+from typing import List
+from concurrent.futures import ThreadPoolExecutor
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 
-class EmbeddingModelManager:
+from server.config import (
+    AWS_REGION,
+    BEDROCK_MODEL_ID,
+    EMBEDDING_DIMENSIONS,
+    NORMALIZE_EMBEDDINGS,
+    BEDROCK_MAX_WORKERS,
+)
+
+class BedrockTitanEmbeddingManager:
     _instance = None
 
     def __init__(self):
-        print(f"[INIT] Loading embedding model '{MODEL_NAME}' on device '{DEVICE}'...")
+        print(f"[INIT] Initializing AWS Bedrock runtime client in region '{AWS_REGION}'...")
+        print(f"[INIT] Target Model: '{BEDROCK_MODEL_ID}' ({EMBEDDING_DIMENSIONS} dims)")
         start_t = time.time()
-        self.device = DEVICE
-        self.gpu_batch_size = GPU_BATCH_SIZE
         
-        model_kwargs = {}
-        if self.device == "cuda":
-            # Enable TF32 for NVIDIA Tensor Core GPU acceleration
-            torch.backends.cuda.matmul.allow_tf32 = True
-            torch.backends.cudnn.allow_tf32 = True
-            
-            # Enable PyTorch 2.x Scaled Dot Product Attention (SDPA) or FlashAttention-2
-            if ATTN_IMPLEMENTATION:
-                model_kwargs["attn_implementation"] = ATTN_IMPLEMENTATION
-                print(f"[INIT] Enabling attention implementation: '{ATTN_IMPLEMENTATION}'")
+        self.region = AWS_REGION
+        self.model_id = BEDROCK_MODEL_ID
+        self.dimensions = EMBEDDING_DIMENSIONS
+        self.normalize = NORMALIZE_EMBEDDINGS
+        self.max_workers = BEDROCK_MAX_WORKERS
 
-        # SentenceTransformer loads BAAI/bge-m3 with optimized model_kwargs
-        try:
-            self.model = SentenceTransformer(
-                MODEL_NAME,
-                device=self.device,
-                model_kwargs=model_kwargs if model_kwargs else None
-            )
-        except Exception as e:
-            print(f"[WARN] Failed to initialize with model_kwargs={model_kwargs}: {e}. Falling back to default loader.")
-            self.model = SentenceTransformer(MODEL_NAME, device=self.device)
-
+        # Initialize boto3 Bedrock Runtime Client
+        self.client = boto3.client("bedrock-runtime", region_name=self.region)
         elapsed = time.time() - start_t
-        print(f"[INIT] Model successfully loaded in {elapsed:.2f}s on {self.device}.")
+        print(f"[INIT] Bedrock client initialized successfully in {elapsed:.2f}s.")
 
     @classmethod
-    def get_instance(cls) -> "EmbeddingModelManager":
+    def get_instance(cls) -> "BedrockTitanEmbeddingManager":
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def encode_texts(self, texts: List[str], device: Optional[str] = None) -> List[List[float]]:
+    def _embed_single_text(self, text: str) -> List[float]:
         """
-        Encode a list of text strings into 1024-dim embeddings using BGE-M3.
+        Invoke Bedrock Titan Text Embeddings V2 for a single text chunk.
+        """
+        # Ensure utf-8 text input
+        clean_text = text if isinstance(text, str) else str(text)
+        if not clean_text.strip():
+            clean_text = " "
+
+        native_request = {
+            "inputText": clean_text,
+            "dimensions": self.dimensions,
+            "normalize": self.normalize,
+        }
+
+        try:
+            response = self.client.invoke_model(
+                modelId=self.model_id,
+                contentType="application/json",
+                accept="application/json",
+                body=json.dumps(native_request),
+            )
+            response_body = json.loads(response["body"].read().decode("utf-8"))
+            embedding = response_body.get("embedding", [])
+            
+            if len(embedding) != self.dimensions:
+                raise ValueError(
+                    f"Expected embedding dimension {self.dimensions}, got {len(embedding)}"
+                )
+            return embedding
+
+        except (BotoCoreError, ClientError) as e:
+            print(f"[ERROR] AWS Bedrock API invocation failed: {e}")
+            raise RuntimeError(f"Bedrock invocation error: {e}") from e
+
+    def encode_texts(self, texts: List[str]) -> List[List[float]]:
+        """
+        Concurrently encode a batch of texts using a ThreadPoolExecutor.
+        Preserves original input ordering.
         """
         if not texts:
             return []
 
-        target_device = device if device else self.device
+        # Execute concurrent calls via threadpool for batch speed
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            embeddings = list(executor.map(self._embed_single_text, texts))
 
-        # Sanitize text input to valid utf-8 strings
-        clean_texts = [
-            t if isinstance(t, str) else str(t)
-            for t in texts
-        ]
-
-        use_fp16 = USE_FP16 if target_device == "cuda" else False
-
-        with torch.inference_mode():
-            embeddings = self.model.encode(
-                clean_texts,
-                device=target_device,
-                batch_size=self.gpu_batch_size if target_device != "cpu" else 16,
-                normalize_embeddings=True,
-                show_progress_bar=False,
-                convert_to_numpy=True,
-                precision="fp16" if use_fp16 else "float32"
-            )
-
-        dim = embeddings.shape[1] if len(embeddings.shape) > 1 else 0
-        if dim != 1024:
-            raise ValueError(f"Expected embedding dimension 1024 from BGE-M3, but got {dim}")
-
-        return embeddings.tolist()
-
-    def encode_query(self, query: str, device: str = "cpu") -> List[float]:
-        """
-        Encode a single query string into a 1024-dim embedding vector in CPU mode.
-        """
-        if not query or not query.strip():
-            raise ValueError("Query string cannot be empty")
-
-        res = self.encode_texts([query], device=device)
-        return res[0]
-
-
+        return embeddings
