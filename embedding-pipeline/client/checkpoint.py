@@ -40,6 +40,13 @@ class CheckpointManager:
         self.data[clean_key]["completed_lines"] = completed_lines
         self.save()
 
+    def reset(self):
+        """Reset/clear all checkpoint progress."""
+        self.data = {}
+        if os.path.exists(self.filepath):
+            os.remove(self.filepath)
+        print("[INFO] Checkpoint state reset successfully.")
+
     def save(self):
         tmp_file = self.filepath + ".tmp"
         with open(tmp_file, "w", encoding="utf-8") as f:

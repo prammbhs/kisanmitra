@@ -1,97 +1,64 @@
-import json
 import time
 from typing import List
-from concurrent.futures import ThreadPoolExecutor
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+import voyageai
 
 try:
     from server.config import (
-        AWS_REGION,
-        BEDROCK_MODEL_ID,
+        VOYAGE_API_KEY,
+        VOYAGE_MODEL_ID,
+        VOYAGE_INPUT_TYPE,
         EMBEDDING_DIMENSIONS,
-        NORMALIZE_EMBEDDINGS,
-        BEDROCK_MAX_WORKERS,
     )
 except ImportError:
     from config import (
-        AWS_REGION,
-        BEDROCK_MODEL_ID,
+        VOYAGE_API_KEY,
+        VOYAGE_MODEL_ID,
+        VOYAGE_INPUT_TYPE,
         EMBEDDING_DIMENSIONS,
-        NORMALIZE_EMBEDDINGS,
-        BEDROCK_MAX_WORKERS,
     )
 
-class BedrockTitanEmbeddingManager:
+class VoyageEmbeddingManager:
     _instance = None
 
     def __init__(self):
-        print(f"[INIT] Initializing AWS Bedrock runtime client in region '{AWS_REGION}'...")
-        print(f"[INIT] Target Model: '{BEDROCK_MODEL_ID}' ({EMBEDDING_DIMENSIONS} dims)")
+        print(f"[INIT] Initializing Voyage AI client...")
+        print(f"[INIT] Target Model: '{VOYAGE_MODEL_ID}' (input_type: '{VOYAGE_INPUT_TYPE}')")
         start_t = time.time()
         
-        self.region = AWS_REGION
-        self.model_id = BEDROCK_MODEL_ID
+        self.model_id = VOYAGE_MODEL_ID
+        self.input_type = VOYAGE_INPUT_TYPE
         self.dimensions = EMBEDDING_DIMENSIONS
-        self.normalize = NORMALIZE_EMBEDDINGS
-        self.max_workers = BEDROCK_MAX_WORKERS
 
-        # Initialize boto3 Bedrock Runtime Client
-        self.client = boto3.client("bedrock-runtime", region_name=self.region)
+        self.client = voyageai.Client(api_key=VOYAGE_API_KEY if VOYAGE_API_KEY else None)
         elapsed = time.time() - start_t
-        print(f"[INIT] Bedrock client initialized successfully in {elapsed:.2f}s.")
+        print(f"[INIT] Voyage AI client initialized successfully in {elapsed:.2f}s.")
 
     @classmethod
-    def get_instance(cls) -> "BedrockTitanEmbeddingManager":
+    def get_instance(cls) -> "VoyageEmbeddingManager":
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def _embed_single_text(self, text: str) -> List[float]:
-        """
-        Invoke Bedrock Titan Text Embeddings V2 for a single text chunk.
-        """
-        # Ensure utf-8 text input
-        clean_text = text if isinstance(text, str) else str(text)
-        if not clean_text.strip():
-            clean_text = " "
-
-        native_request = {
-            "inputText": clean_text,
-            "dimensions": self.dimensions,
-            "normalize": self.normalize,
-        }
-
-        try:
-            response = self.client.invoke_model(
-                modelId=self.model_id,
-                contentType="application/json",
-                accept="application/json",
-                body=json.dumps(native_request),
-            )
-            response_body = json.loads(response["body"].read().decode("utf-8"))
-            embedding = response_body.get("embedding", [])
-            
-            if len(embedding) != self.dimensions:
-                raise ValueError(
-                    f"Expected embedding dimension {self.dimensions}, got {len(embedding)}"
-                )
-            return embedding
-
-        except (BotoCoreError, ClientError) as e:
-            print(f"[ERROR] AWS Bedrock API invocation failed: {e}")
-            raise RuntimeError(f"Bedrock invocation error: {e}") from e
-
     def encode_texts(self, texts: List[str]) -> List[List[float]]:
         """
-        Concurrently encode a batch of texts using a ThreadPoolExecutor.
-        Preserves original input ordering.
+        Encode a list of texts using Voyage AI synchronous embedding API.
         """
         if not texts:
             return []
 
-        # Execute concurrent calls via threadpool for batch speed
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            embeddings = list(executor.map(self._embed_single_text, texts))
+        clean_texts = [
+            t if (isinstance(t, str) and t.strip()) else " "
+            for t in texts
+        ]
 
-        return embeddings
+        try:
+            result = self.client.embed(
+                texts=clean_texts,
+                model=self.model_id,
+                input_type=self.input_type if self.input_type else None,
+            )
+            return result.embeddings
+        except Exception as e:
+            print(f"[ERROR] Voyage AI API invocation failed ({type(e).__name__}): {e}")
+            raise RuntimeError(f"VoyageAI ({type(e).__name__}): {e}") from e
+

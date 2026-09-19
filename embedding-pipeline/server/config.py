@@ -7,12 +7,11 @@ load_dotenv()
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
-# AWS Bedrock & Model settings
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "amazon.titan-embed-text-v2:0")
+# Voyage AI & Model settings
+VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY", "")
+VOYAGE_MODEL_ID = os.getenv("VOYAGE_MODEL_ID", "voyage-4-lite")
+VOYAGE_INPUT_TYPE = os.getenv("VOYAGE_INPUT_TYPE", "document")
 EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "1024"))
-NORMALIZE_EMBEDDINGS = os.getenv("NORMALIZE_EMBEDDINGS", "True").lower() == "true"
-BEDROCK_MAX_WORKERS = int(os.getenv("BEDROCK_MAX_WORKERS", "10"))
 
 # Storage Settings (EBS ChromaDB)
 CHROMA_PATH = os.getenv("CHROMA_PATH", "/mnt/chroma")
@@ -21,3 +20,4 @@ DEFAULT_COLLECTION = os.getenv("DEFAULT_COLLECTION", "kcc_docs")
 
 # Optional Auth
 EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "")
+

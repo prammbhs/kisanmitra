@@ -1,4 +1,5 @@
 import time
+import traceback
 from typing import List, Dict, Any, Optional
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Security, Depends, status
@@ -9,27 +10,25 @@ try:
     from server.config import (
         HOST,
         PORT,
-        AWS_REGION,
-        BEDROCK_MODEL_ID,
+        VOYAGE_MODEL_ID,
         EMBEDDING_DIMENSIONS,
         CHROMA_PATH,
         EMBEDDING_API_KEY,
         ALLOWED_COLLECTIONS,
     )
-    from server.model import BedrockTitanEmbeddingManager
+    from server.model import VoyageEmbeddingManager
     from server.database import ChromaDBManager
 except ImportError:
     from config import (
         HOST,
         PORT,
-        AWS_REGION,
-        BEDROCK_MODEL_ID,
+        VOYAGE_MODEL_ID,
         EMBEDDING_DIMENSIONS,
         CHROMA_PATH,
         EMBEDDING_API_KEY,
         ALLOWED_COLLECTIONS,
     )
-    from model import BedrockTitanEmbeddingManager
+    from model import VoyageEmbeddingManager
     from database import ChromaDBManager
 
 # Runtime Statistics tracking
@@ -51,15 +50,15 @@ def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(s
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[SERVER] Starting FastAPI CPU Embedding Server (AWS Bedrock Titan V2)...")
-    BedrockTitanEmbeddingManager.get_instance()
+    print("[SERVER] Starting FastAPI CPU Embedding Server (Voyage AI voyage-4-lite)...")
+    VoyageEmbeddingManager.get_instance()
     ChromaDBManager.get_instance()
     yield
     print("[SERVER] Shutting down FastAPI CPU Embedding Server...")
 
 app = FastAPI(
-    title="AWS Bedrock Titan V2 Embedding Server",
-    description="FastAPI service for bulk text embedding with Amazon Titan Text Embeddings V2 via AWS Bedrock, persisting into ChromaDB on EBS",
+    title="Voyage AI Embedding Server",
+    description="FastAPI service for bulk text embedding with Voyage AI voyage-4-lite, persisting vectors directly into ChromaDB on EBS",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -90,9 +89,8 @@ def health_check():
     counts = {col: db_mgr.get_collection_count(col) for col in ALLOWED_COLLECTIONS}
     return {
         "status": "ok",
-        "provider": "AWS Bedrock",
-        "model": BEDROCK_MODEL_ID,
-        "region": AWS_REGION,
+        "provider": "Voyage AI",
+        "model": VOYAGE_MODEL_ID,
         "dimensions": EMBEDDING_DIMENSIONS,
         "chroma_path": CHROMA_PATH,
         "collections": counts,
@@ -125,10 +123,10 @@ def embed_batch(request: EmbedRequest):
     metadatas = [item.metadata for item in request.items]
 
     try:
-        model_mgr = BedrockTitanEmbeddingManager.get_instance()
+        model_mgr = VoyageEmbeddingManager.get_instance()
         db_mgr = ChromaDBManager.get_instance()
 
-        # 1. Encode text via AWS Bedrock Titan Text Embeddings V2
+        # 1. Encode text via Voyage AI voyage-4-lite
         embeddings = model_mgr.encode_texts(texts)
 
         # 2. Store directly into ChromaDB on EBS
@@ -159,7 +157,8 @@ def embed_batch(request: EmbedRequest):
 
     except Exception as e:
         print(f"[ERROR] Exception during /embed processing: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

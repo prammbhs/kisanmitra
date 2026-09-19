@@ -25,7 +25,6 @@ shutdown_requested = False
 
 def handle_sigint(signum, frame):
     global shutdown_requested
-    print("\n[INFO] Graceful shutdown requested (Ctrl+C). Finishing current operation...")
     shutdown_requested = True
 
 signal.signal(signal.SIGINT, handle_sigint)
@@ -61,6 +60,7 @@ def process_file(
 
     for item in stream_jsonl(filepath, start_line=completed_lines):
         if shutdown_requested:
+            print("\n[INFO] Shutdown flag set. Stopping processing loop...")
             break
 
         # Group by target collection if target changes mid-batch
@@ -115,6 +115,7 @@ def main():
     parser.add_argument("--input", "-i", required=True, help="Input directory containing .jsonl files")
     parser.add_argument("--batch-size", "-b", type=int, default=HTTP_BATCH_SIZE, help="HTTP micro-batch size")
     parser.add_argument("--url", "-u", default=None, help="Embedding Server API URL")
+    parser.add_argument("--reset", action="store_true", help="Reset checkpoint progress and start fresh")
     args = parser.parse_args()
 
     input_dir = os.path.abspath(args.input)
@@ -126,8 +127,11 @@ def main():
     print(f"[INIT] Embedding Client Target URL: {api_url}")
     print(f"[INIT] Micro-batch size: {args.batch_size}")
 
-    client = EmbeddingAPIClient(api_url=api_url)
     checkpoint = CheckpointManager()
+    if args.reset:
+        checkpoint.reset()
+
+    client = EmbeddingAPIClient(api_url=api_url)
 
     # Recursively find all .jsonl files
     jsonl_files = sorted(glob.glob(os.path.join(input_dir, "**", "*.jsonl"), recursive=True))
