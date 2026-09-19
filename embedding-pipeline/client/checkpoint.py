@@ -1,7 +1,11 @@
 import json
 import os
 from typing import Dict, Any
-from client.config import CHECKPOINT_FILE
+
+try:
+    from client.config import CHECKPOINT_FILE
+except ImportError:
+    from config import CHECKPOINT_FILE
 
 class CheckpointManager:
     def __init__(self, filepath: str = CHECKPOINT_FILE):

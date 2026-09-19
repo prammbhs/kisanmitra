@@ -9,10 +9,16 @@ from typing import List, Dict, Any
 # Adjust path if run directly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from client.config import HTTP_BATCH_SIZE, EMBEDDING_API_URL
-from client.jsonl_reader import stream_jsonl
-from client.retry import EmbeddingAPIClient
-from client.checkpoint import CheckpointManager
+try:
+    from client.config import HTTP_BATCH_SIZE, EMBEDDING_API_URL
+    from client.jsonl_reader import stream_jsonl
+    from client.retry import EmbeddingAPIClient
+    from client.checkpoint import CheckpointManager
+except ImportError:
+    from config import HTTP_BATCH_SIZE, EMBEDDING_API_URL
+    from jsonl_reader import stream_jsonl
+    from retry import EmbeddingAPIClient
+    from checkpoint import CheckpointManager
 
 # Graceful shutdown handler flag
 shutdown_requested = False
@@ -108,7 +114,7 @@ def main():
     parser = argparse.ArgumentParser(description="Streaming JSONL Embedding Worker")
     parser.add_argument("--input", "-i", required=True, help="Input directory containing .jsonl files")
     parser.add_argument("--batch-size", "-b", type=int, default=HTTP_BATCH_SIZE, help="HTTP micro-batch size")
-    parser.add_argument("--url", u=None, default=None, help="Embedding Server API URL")
+    parser.add_argument("--url", "-u", default=None, help="Embedding Server API URL")
     args = parser.parse_args()
 
     input_dir = os.path.abspath(args.input)

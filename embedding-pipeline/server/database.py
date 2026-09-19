@@ -1,7 +1,11 @@
 import os
 import chromadb
 from typing import List, Dict, Any
-from server.config import CHROMA_PATH, ALLOWED_COLLECTIONS, DEFAULT_COLLECTION
+
+try:
+    from server.config import CHROMA_PATH, ALLOWED_COLLECTIONS, DEFAULT_COLLECTION
+except ImportError:
+    from config import CHROMA_PATH, ALLOWED_COLLECTIONS, DEFAULT_COLLECTION
 
 class ChromaDBManager:
     _instance = None

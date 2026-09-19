@@ -5,18 +5,32 @@ from fastapi import FastAPI, HTTPException, Security, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
-from server.config import (
-    HOST,
-    PORT,
-    AWS_REGION,
-    BEDROCK_MODEL_ID,
-    EMBEDDING_DIMENSIONS,
-    CHROMA_PATH,
-    EMBEDDING_API_KEY,
-    ALLOWED_COLLECTIONS,
-)
-from server.model import BedrockTitanEmbeddingManager
-from server.database import ChromaDBManager
+try:
+    from server.config import (
+        HOST,
+        PORT,
+        AWS_REGION,
+        BEDROCK_MODEL_ID,
+        EMBEDDING_DIMENSIONS,
+        CHROMA_PATH,
+        EMBEDDING_API_KEY,
+        ALLOWED_COLLECTIONS,
+    )
+    from server.model import BedrockTitanEmbeddingManager
+    from server.database import ChromaDBManager
+except ImportError:
+    from config import (
+        HOST,
+        PORT,
+        AWS_REGION,
+        BEDROCK_MODEL_ID,
+        EMBEDDING_DIMENSIONS,
+        CHROMA_PATH,
+        EMBEDDING_API_KEY,
+        ALLOWED_COLLECTIONS,
+    )
+    from model import BedrockTitanEmbeddingManager
+    from database import ChromaDBManager
 
 # Runtime Statistics tracking
 stats_counter = {

@@ -5,13 +5,22 @@ from concurrent.futures import ThreadPoolExecutor
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from server.config import (
-    AWS_REGION,
-    BEDROCK_MODEL_ID,
-    EMBEDDING_DIMENSIONS,
-    NORMALIZE_EMBEDDINGS,
-    BEDROCK_MAX_WORKERS,
-)
+try:
+    from server.config import (
+        AWS_REGION,
+        BEDROCK_MODEL_ID,
+        EMBEDDING_DIMENSIONS,
+        NORMALIZE_EMBEDDINGS,
+        BEDROCK_MAX_WORKERS,
+    )
+except ImportError:
+    from config import (
+        AWS_REGION,
+        BEDROCK_MODEL_ID,
+        EMBEDDING_DIMENSIONS,
+        NORMALIZE_EMBEDDINGS,
+        BEDROCK_MAX_WORKERS,
+    )
 
 class BedrockTitanEmbeddingManager:
     _instance = None

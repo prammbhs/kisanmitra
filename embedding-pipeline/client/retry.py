@@ -1,13 +1,23 @@
 import time
 import requests
 from typing import Dict, Any, List
-from client.config import (
-    EMBEDDING_API_URL,
-    EMBEDDING_API_KEY,
-    MAX_RETRIES,
-    INITIAL_BACKOFF,
-    REQUEST_TIMEOUT,
-)
+
+try:
+    from client.config import (
+        EMBEDDING_API_URL,
+        EMBEDDING_API_KEY,
+        MAX_RETRIES,
+        INITIAL_BACKOFF,
+        REQUEST_TIMEOUT,
+    )
+except ImportError:
+    from config import (
+        EMBEDDING_API_URL,
+        EMBEDDING_API_KEY,
+        MAX_RETRIES,
+        INITIAL_BACKOFF,
+        REQUEST_TIMEOUT,
+    )
 
 class EmbeddingAPIClient:
     def __init__(
