@@ -86,18 +86,23 @@ class EmbedResponse(BaseModel):
 @app.get("/health")
 def health_check():
     db_mgr = ChromaDBManager.get_instance()
+    model_mgr = VoyageEmbeddingManager.get_instance()
     counts = {col: db_mgr.get_collection_count(col) for col in ALLOWED_COLLECTIONS}
     return {
         "status": "ok",
         "provider": "Voyage AI",
         "model": VOYAGE_MODEL_ID,
         "dimensions": EMBEDDING_DIMENSIONS,
+        "total_tokens_used": model_mgr.total_tokens_used,
+        "max_token_limit": model_mgr.max_token_limit,
+        "tokens_remaining": max(0, model_mgr.max_token_limit - model_mgr.total_tokens_used),
         "chroma_path": CHROMA_PATH,
         "collections": counts,
     }
 
 @app.get("/stats")
 def get_stats():
+    model_mgr = VoyageEmbeddingManager.get_instance()
     avg_req_time = (
         stats_counter["total_processing_time_seconds"] / stats_counter["total_requests"]
         if stats_counter["total_requests"] > 0
@@ -106,9 +111,13 @@ def get_stats():
     return {
         "total_requests": stats_counter["total_requests"],
         "total_chunks_processed": stats_counter["total_chunks_processed"],
+        "total_tokens_used": model_mgr.total_tokens_used,
+        "max_token_limit": model_mgr.max_token_limit,
+        "tokens_remaining": max(0, model_mgr.max_token_limit - model_mgr.total_tokens_used),
         "total_processing_time_seconds": round(stats_counter["total_processing_time_seconds"], 3),
         "avg_request_time_seconds": round(avg_req_time, 3),
     }
+
 
 @app.post("/embed", response_model=EmbedResponse, dependencies=[Depends(verify_token)])
 def embed_batch(request: EmbedRequest):
