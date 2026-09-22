@@ -1,5 +1,9 @@
 import time
 import traceback
+import faulthandler
+
+faulthandler.enable()
+
 from typing import List, Dict, Any, Optional
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Security, Depends, status
@@ -50,15 +54,15 @@ def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(s
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[SERVER] Starting FastAPI CPU Embedding Server (Voyage AI voyage-4-lite)...")
-    VoyageEmbeddingManager.get_instance()
+    model_mgr = VoyageEmbeddingManager.get_instance()
     ChromaDBManager.get_instance()
+    print(f"[SERVER] Starting FastAPI CPU Embedding Server (Active Model: '{model_mgr.current_model_id}')...")
     yield
     print("[SERVER] Shutting down FastAPI CPU Embedding Server...")
 
 app = FastAPI(
     title="Voyage AI Embedding Server",
-    description="FastAPI service for bulk text embedding with Voyage AI voyage-4-lite, persisting vectors directly into ChromaDB on EBS",
+    description="FastAPI service for bulk text embedding with Voyage AI models, persisting vectors directly into ChromaDB on EBS",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -91,7 +95,7 @@ def health_check():
     return {
         "status": "ok",
         "provider": "Voyage AI",
-        "model": VOYAGE_MODEL_ID,
+        "model": model_mgr.current_model_id,
         "dimensions": EMBEDDING_DIMENSIONS,
         "total_tokens_used": model_mgr.total_tokens_used,
         "max_token_limit": model_mgr.max_token_limit,
@@ -99,6 +103,7 @@ def health_check():
         "chroma_path": CHROMA_PATH,
         "collections": counts,
     }
+
 
 @app.get("/stats")
 def get_stats():

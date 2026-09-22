@@ -25,11 +25,10 @@ class VoyageEmbeddingManager:
 
     def __init__(self):
         print(f"[INIT] Initializing Voyage AI client...")
-        print(f"[INIT] Target Model: '{VOYAGE_MODEL_ID}' (input_type: '{VOYAGE_INPUT_TYPE}')")
+        print(f"[INIT] Target Model: '{self.current_model_id}' (input_type: '{VOYAGE_INPUT_TYPE}')")
         print(f"[INIT] Token Limit: {MAX_TOKEN_LIMIT:,} tokens")
         start_t = time.time()
         
-        self.model_id = VOYAGE_MODEL_ID
         self.input_type = VOYAGE_INPUT_TYPE
         self.dimensions = EMBEDDING_DIMENSIONS
         self.max_token_limit = MAX_TOKEN_LIMIT
@@ -42,7 +41,7 @@ class VoyageEmbeddingManager:
             self.current_api_key = api_key
             self.client = voyageai.Client(api_key=api_key)
             elapsed = time.time() - start_t
-            print(f"[INIT] Voyage AI client initialized successfully in {elapsed:.2f}s.")
+            print(f"[INIT] Voyage AI client initialized successfully in {elapsed:.2f}s for model '{self.current_model_id}'.")
         else:
             print("[WARN] VOYAGE_API_KEY is not set yet. It will be required when processing /embed requests.")
 
@@ -51,6 +50,10 @@ class VoyageEmbeddingManager:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    @property
+    def current_model_id(self) -> str:
+        return os.getenv("VOYAGE_MODEL_ID") or VOYAGE_MODEL_ID
 
     def _get_api_key(self, raise_if_missing: bool = True) -> str:
         key = os.getenv("VOYAGE_API_KEY") or VOYAGE_API_KEY
@@ -91,36 +94,52 @@ class VoyageEmbeddingManager:
             for t in texts
         ]
 
-        try:
-            result = self.client.embed(
-                texts=clean_texts,
-                model=self.model_id,
-                input_type=self.input_type if self.input_type else None,
-            )
+        active_model = self.current_model_id
+        max_api_retries = 6
+        backoff_sec = 15.0
 
-            # Extract token count from Voyage AI response object
-            batch_tokens = getattr(result, "total_tokens", 0)
-            if not batch_tokens and hasattr(result, "usage"):
-                usage = result.usage
-                batch_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else getattr(usage, "total_tokens", 0)
-            
-            # Fallback estimation if token count is unavailable (approx 1 token per 4 chars)
-            if not batch_tokens:
-                batch_tokens = sum(max(1, len(t) // 4) for t in clean_texts)
+        for attempt in range(1, max_api_retries + 1):
+            try:
+                result = self.client.embed(
+                    texts=clean_texts,
+                    model=active_model,
+                    input_type=self.input_type if self.input_type else None,
+                )
 
-            self.total_tokens_used += batch_tokens
-            print(f"[INFO] Batch embedded: {len(clean_texts)} texts, {batch_tokens:,} tokens used. Cumulative: {self.total_tokens_used:,} / {self.max_token_limit:,} tokens.")
+                # Extract token count from Voyage AI response object
+                batch_tokens = getattr(result, "total_tokens", 0)
+                if not batch_tokens and hasattr(result, "usage"):
+                    usage = result.usage
+                    batch_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else getattr(usage, "total_tokens", 0)
+                
+                # Fallback estimation if token count is unavailable (approx 1 token per 4 chars)
+                if not batch_tokens:
+                    batch_tokens = sum(max(1, len(t) // 4) for t in clean_texts)
 
-            if self.total_tokens_used >= self.max_token_limit:
-                print(f"[WARNING] Maximum token limit of {self.max_token_limit:,} tokens has been reached!")
+                self.total_tokens_used += batch_tokens
+                print(f"[INFO] Batch embedded: {len(clean_texts)} texts using model '{active_model}', {batch_tokens:,} tokens used. Cumulative: {self.total_tokens_used:,} / {self.max_token_limit:,} tokens.")
 
-            return result.embeddings
+                if self.total_tokens_used >= self.max_token_limit:
+                    print(f"[WARNING] Maximum token limit of {self.max_token_limit:,} tokens has been reached!")
 
-        except Exception as e:
-            if "Token limit reached" in str(e) or "VOYAGE_API_KEY is missing" in str(e):
-                raise
-            print(f"[ERROR] Voyage AI API invocation failed ({type(e).__name__}): {e}")
-            raise RuntimeError(f"VoyageAI ({type(e).__name__}): {e}") from e
+                return result.embeddings
+
+            except Exception as e:
+                err_msg = str(e)
+                if "Token limit reached" in err_msg or "VOYAGE_API_KEY is missing" in err_msg:
+                    raise
+
+                is_rate_limit = "RateLimitError" in err_msg or "rate limit" in err_msg.lower() or "exceeded" in err_msg.lower()
+                if is_rate_limit and attempt < max_api_retries:
+                    print(f"[WARN] Voyage AI TPM Rate Limit hit (Attempt {attempt}/{max_api_retries}). Sleeping {backoff_sec}s for rate limit window to reset...")
+                    time.sleep(backoff_sec)
+                    continue
+
+                print(f"[ERROR] Voyage AI API invocation failed ({type(e).__name__}): {e}")
+                raise RuntimeError(f"VoyageAI ({type(e).__name__}): {e}") from e
+
+        raise RuntimeError("VoyageAI API max rate-limit retries exceeded.")
+
 
 
 

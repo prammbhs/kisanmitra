@@ -110,10 +110,13 @@ def _flush_batch(
     # Checkpoint ONLY after successful server storage confirmation
     checkpoint.update_checkpoint(rel_path, last_line)
 
+from concurrent.futures import ThreadPoolExecutor
+
 def main():
     parser = argparse.ArgumentParser(description="Streaming JSONL Embedding Worker")
     parser.add_argument("--input", "-i", required=True, help="Input directory containing .jsonl files")
     parser.add_argument("--batch-size", "-b", type=int, default=HTTP_BATCH_SIZE, help="HTTP micro-batch size")
+    parser.add_argument("--workers", "-w", type=int, default=4, help="Number of parallel worker threads")
     parser.add_argument("--url", "-u", default=None, help="Embedding Server API URL")
     parser.add_argument("--reset", action="store_true", help="Reset checkpoint progress and start fresh")
     args = parser.parse_args()
@@ -126,6 +129,7 @@ def main():
     api_url = args.url or EMBEDDING_API_URL
     print(f"[INIT] Embedding Client Target URL: {api_url}")
     print(f"[INIT] Micro-batch size: {args.batch_size}")
+    print(f"[INIT] Parallel Workers: {args.workers}")
 
     checkpoint = CheckpointManager()
     if args.reset:
@@ -141,11 +145,26 @@ def main():
 
     print(f"[INFO] Found {len(jsonl_files)} JSONL files to process.")
 
-    for file_path in jsonl_files:
-        if shutdown_requested:
-            print("[INFO] Exiting main loop due to shutdown request.")
-            break
-        process_file(file_path, input_dir, client, checkpoint, args.batch_size)
+    if args.workers > 1:
+        print(f"[INFO] Launching ThreadPoolExecutor with {args.workers} workers...")
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            futures = [
+                executor.submit(process_file, file_path, input_dir, client, checkpoint, args.batch_size)
+                for file_path in jsonl_files
+            ]
+            for future in futures:
+                if shutdown_requested:
+                    break
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"[ERROR] Worker task encountered exception: {e}")
+    else:
+        for file_path in jsonl_files:
+            if shutdown_requested:
+                print("[INFO] Exiting main loop due to shutdown request.")
+                break
+            process_file(file_path, input_dir, client, checkpoint, args.batch_size)
 
     print("\n[INFO] Worker task finished.")
 

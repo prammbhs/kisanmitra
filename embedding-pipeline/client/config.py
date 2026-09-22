@@ -9,8 +9,8 @@ EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "")
 
 # Batch & Retry settings
 HTTP_BATCH_SIZE = int(os.getenv("HTTP_BATCH_SIZE", "128"))
-MAX_RETRIES = int(os.getenv("MAX_RETRIES", "4"))
-INITIAL_BACKOFF = float(os.getenv("INITIAL_BACKOFF", "2.0"))
+MAX_RETRIES = int(os.getenv("MAX_RETRIES", "8"))
+INITIAL_BACKOFF = float(os.getenv("INITIAL_BACKOFF", "4.0"))
 REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "300.0"))
 
 # Checkpoint settings
