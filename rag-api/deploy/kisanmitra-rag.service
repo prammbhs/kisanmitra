@@ -1,0 +1,14 @@
+[Unit]
+Description=KisanMitra RAG API
+After=network-online.target
+RequiresMountsFor=/mnt/chroma
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/kisanmitra/rag-api
+EnvironmentFile=/home/ubuntu/kisanmitra/rag-api/.env
+ExecStart=/home/ubuntu/kisanmitra/rag-api/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
