@@ -3,9 +3,22 @@ uvicorn[standard]>=0.27.0
 pydantic>=2.0.0
 python-dotenv>=1.0.0
 
+# Database & Auth
+sqlmodel>=0.0.14
+passlib[bcrypt]>=1.7.4
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.9
+
+# Vector DB & Embeddings
 chromadb==0.5.20
 voyageai>=0.3.0
+
+# LangChain & LangGraph
 langchain-core>=0.3.0
 langchain-chroma>=0.1.0
 langchain-fireworks>=0.2.0
+langgraph>=0.2.0
+langgraph-checkpoint-sqlite>=2.0.0
+
+# Utilities
 requests>=2.31.0
