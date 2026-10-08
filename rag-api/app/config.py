@@ -10,8 +10,8 @@ RAG_API_KEY = os.getenv("RAG_API_KEY", "")  # empty = auth disabled
 
 # --- Chroma (EBS mount) ---
 CHROMA_PATH = os.getenv("CHROMA_PATH", "/mnt/chroma")
-COLLECTIONS = ["kcc_docs", "other_docs"]
-DEFAULT_COLLECTIONS = os.getenv("DEFAULT_COLLECTIONS", "kcc_docs,other_docs").split(",")
+COLLECTIONS = ["kcc_docs"]
+DEFAULT_COLLECTIONS = os.getenv("DEFAULT_COLLECTIONS", "kcc_docs").split(",")
 
 # --- Embeddings: MUST match ingestion (voyage-4-lite, 1024d) ---
 VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY", "")
@@ -20,7 +20,7 @@ EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "1024"))
 
 # --- LLM: Fireworks ---
 FIREWORKS_API_KEY = os.getenv("FIREWORKS_API_KEY", "")
-FIREWORKS_MODEL = os.getenv("FIREWORKS_MODEL", "accounts/fireworks/models/llama-v3p3-70b-instruct")
+FIREWORKS_MODEL = os.getenv("FIREWORKS_MODEL", "accounts/fireworks/models/glm-5p3-flash")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
 

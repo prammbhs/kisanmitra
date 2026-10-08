@@ -3,7 +3,7 @@
 Measures:
 1. Retrieval Latency (P50, P95, Mean) across 1.54M KCC embeddings on EBS.
 2. Top-1 and Top-K Similarity Scores.
-3. Generation Latency & End-to-End Chat Latency using Fireworks AI.
+3. Generation Latency & End-to-End Chat Latency using Fireworks AI (GLM-5.3 Flash).
 4. Citation & Context verification.
 
 Usage:
@@ -273,7 +273,7 @@ def run_benchmark(base_url: str, test_chat: bool = False, k: int = 4, token: str
     print(f"  • Mean Overall (K) : {statistics.mean(topk_scores):.3f}")
 
     if test_chat and generation_latencies:
-        print(f"\n[GENERATION LATENCY - FIREWORKS LLAMA-3.3 70B]")
+        print(f"\n[GENERATION LATENCY - FIREWORKS GLM-5.3 FLASH]")
         print(f"  • P50 (Median)   : {percentile(generation_latencies, 50):.1f} ms")
         print(f"  • P95            : {percentile(generation_latencies, 95):.1f} ms")
         print(f"  • Mean           : {statistics.mean(generation_latencies):.1f} ms")
