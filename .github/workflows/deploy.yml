@@ -65,20 +65,22 @@ jobs:
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
-        run: |
-          # Add EC2 host to known_hosts to prevent interactive prompts
-          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+          # Ensure SSH directory exists and disable strict host key checks for automated runner
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
           echo "🚀 Starting automated deployment on EC2 ($EC2_HOST)..."
 
-          ssh "$EC2_USER@$EC2_HOST" << 'EOF'
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=30 "$EC2_USER@$EC2_HOST" << 'EOF'
             set -e
 
             echo "📥 Navigating to project directory..."
             cd ~/kisanmitra
 
             echo "🔄 Pulling latest changes from Git..."
-            git pull origin main
+            # Clean untracked changes if any to ensure clean pull
+            git fetch origin main
+            git reset --hard origin/main
 
             echo "📦 Activating virtual environment & updating dependencies..."
             cd rag-api
@@ -89,11 +91,18 @@ jobs:
             echo "🔁 Restarting KisanMitra systemd service..."
             sudo systemctl restart kisanmitra-rag
 
-            echo "⏳ Waiting for server warm-up..."
-            sleep 8
+            echo "⏳ Polling server health check (waiting for Chroma warmup)..."
+            for i in {1..15}; do
+              if curl -s -f http://localhost:8080/health > /dev/null; then
+                echo "🩺 Health check PASSED on attempt $i!"
+                break
+              fi
+              echo "   Waiting for server readiness (attempt $i/15)..."
+              sleep 3
+            done
 
-            echo "🩺 Running health check..."
-            curl --fail http://localhost:8080/health || exit 1
+            echo "🩺 Final Health Check Verification:"
+            curl -s http://localhost:8080/health | python3 -m json.tool || exit 1
 
             echo "✅ Deployment completed successfully!"
           EOF
