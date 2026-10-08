@@ -65,6 +65,7 @@ jobs:
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
+        run: |
           # Ensure SSH directory exists and disable strict host key checks for automated runner
           mkdir -p ~/.ssh
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
@@ -92,17 +93,25 @@ jobs:
             sudo systemctl restart kisanmitra-rag
 
             echo "⏳ Polling server health check (waiting for Chroma warmup)..."
+            healthy=0
             for i in {1..15}; do
               if curl -s -f http://localhost:8080/health > /dev/null; then
                 echo "🩺 Health check PASSED on attempt $i!"
+                healthy=1
                 break
               fi
               echo "   Waiting for server readiness (attempt $i/15)..."
               sleep 3
             done
 
+            if [ "$healthy" -ne 1 ]; then
+              echo "❌ Health check failed after 15 attempts."
+              sudo systemctl --no-pager --full status kisanmitra-rag || true
+              exit 1
+            fi
+
             echo "🩺 Final Health Check Verification:"
-            curl -s http://localhost:8080/health | python3 -m json.tool || exit 1
+            curl -s -f http://localhost:8080/health | python3 -m json.tool
 
             echo "✅ Deployment completed successfully!"
           EOF
