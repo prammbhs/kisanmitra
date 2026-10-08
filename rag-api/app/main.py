@@ -165,7 +165,7 @@ async def chat(
     }
 
     t0 = time.perf_counter()
-    final_state = await graph.ainvoke(initial_input, config=config)
+    final_state = await run_in_threadpool(graph.invoke, initial_input, config=config)
     total_ms = (time.perf_counter() - t0) * 1000
 
     docs = final_state.get("documents", [])
@@ -211,8 +211,8 @@ async def chat_stream(
     async def event_generator():
         yield f"event: thread\ndata: {json.dumps({'thread_id': thread_id})}\n\n"
         
-        # Invoke graph to completion
-        final_state = await graph.ainvoke(initial_input, config=config)
+        # Invoke graph in threadpool
+        final_state = await run_in_threadpool(graph.invoke, initial_input, config=config)
 
         docs = final_state.get("documents", [])
         scores = final_state.get("document_scores", [])

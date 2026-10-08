@@ -54,7 +54,7 @@ Respond ONLY in valid JSON matching this structure:
 }}"""
 
 
-async def analyze_and_rewrite(state: AgentState) -> Dict[str, Any]:
+def analyze_and_rewrite(state: AgentState) -> Dict[str, Any]:
     llm = get_llm(temperature=0.0)
     profile = state.get("user_profile") or {}
     
@@ -78,7 +78,7 @@ async def analyze_and_rewrite(state: AgentState) -> Dict[str, Any]:
     ]
 
     try:
-        response = await llm.ainvoke(prompt_messages)
+        response = llm.invoke(prompt_messages)
         content = response.content.strip()
         # Clean potential markdown fences
         if content.startswith("```json"):
@@ -165,7 +165,7 @@ def relax_and_retry(state: AgentState) -> Dict[str, Any]:
 
 # --- Node 5: Generate Answer ---
 
-async def generate_answer(state: AgentState) -> Dict[str, Any]:
+def generate_answer(state: AgentState) -> Dict[str, Any]:
     llm = get_llm(temperature=0.2)
     docs = state.get("documents", [])
     scores = state.get("document_scores", [])
@@ -180,7 +180,7 @@ async def generate_answer(state: AgentState) -> Dict[str, Any]:
     ])
 
     chain = prompt | llm
-    res = await chain.ainvoke({"question": query, "context": context_str})
+    res = chain.invoke({"question": query, "context": context_str})
     answer_text = res.content
 
     return {
