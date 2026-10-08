@@ -26,6 +26,7 @@ def verify_token(creds: Optional[HTTPAuthorizationCredentials] = Depends(securit
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     vs = VectorStoreManager()
+    await run_in_threadpool(vs.warmup)
     state["vs"] = vs
     state["rag"] = RAGChain(vs)
     yield

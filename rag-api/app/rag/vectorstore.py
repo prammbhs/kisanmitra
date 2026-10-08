@@ -1,5 +1,6 @@
 """Read-only access to the existing Chroma collections on the EBS volume."""
 import os
+import time
 from typing import Dict, List, Optional, Tuple
 
 import chromadb
@@ -35,6 +36,23 @@ class VectorStoreManager:
     def count(self, name: str) -> int:
         return self.client.get_collection(name).count()
 
+    def warmup(self) -> None:
+        """Prime HNSW segment and cache into memory with a dummy query on startup."""
+        print("[WARMUP] Priming ChromaDB HNSW vector index into RAM...")
+        t0 = time.perf_counter()
+        dummy_vec = [0.0] * 1024
+        for name, store in self.stores.items():
+            try:
+                # Query directly via Chroma collection to force HNSW index load into memory
+                store._collection.query(
+                    query_embeddings=[dummy_vec],
+                    n_results=1,
+                    include=["distances"],
+                )
+                print(f"[WARMUP] Collection '{name}' primed in {(time.perf_counter() - t0):.2f}s")
+            except Exception as e:
+                print(f"[WARMUP] Error warming up '{name}': {e}")
+
     def search(
         self,
         query: str,
@@ -43,8 +61,12 @@ class VectorStoreManager:
         where: Optional[dict] = None,
     ) -> List[Tuple[Document, float]]:
         """Embed query once, search each collection, merge by similarity (higher = better)."""
+        t0 = time.perf_counter()
         qvec = self.embeddings.embed_query(query)
+        embed_ms = (time.perf_counter() - t0) * 1000
+
         results: List[Tuple[Document, float]] = []
+        chroma_t0 = time.perf_counter()
         for name in collections:
             store = self.stores.get(name)
             if not store:
@@ -56,7 +78,10 @@ class VectorStoreManager:
                 doc.metadata["collection"] = name
                 # cosine distance -> similarity
                 results.append((doc, 1.0 - float(distance)))
+        chroma_ms = (time.perf_counter() - chroma_t0) * 1000
+
         results.sort(key=lambda x: x[1], reverse=True)
+        print(f"[SEARCH TIMING] Embedding: {embed_ms:.1f}ms | Chroma HNSW: {chroma_ms:.1f}ms | Total: {(embed_ms + chroma_ms):.1f}ms")
         return results[:k]
 
 

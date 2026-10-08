@@ -10,3 +10,4 @@ books_test
 *.jsonl
 projectstrucure.md
 checkpoints
+venv
