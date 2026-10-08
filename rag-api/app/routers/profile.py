@@ -1,5 +1,4 @@
-"""Farmer Profile Router: Read and Update profile."""
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -49,7 +48,7 @@ def update_profile(
     if update_data.preferred_language is not None:
         profile.preferred_language = update_data.preferred_language
 
-    profile.updated_at = datetime.utcnow()
+    profile.updated_at = datetime.now(timezone.utc)
     session.add(profile)
     session.commit()
     session.refresh(profile)

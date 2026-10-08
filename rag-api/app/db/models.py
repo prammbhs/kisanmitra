@@ -1,8 +1,11 @@
-"""Database models for Users and Farmer Profiles."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlmodel import Field, Relationship, SQLModel
 import json
+
+
+def get_utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class User(SQLModel, table=True):
@@ -12,7 +15,7 @@ class User(SQLModel, table=True):
     phone_or_email: str = Field(index=True, unique=True, nullable=False)
     hashed_password: str = Field(nullable=False)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=get_utc_now)
 
     # 1-to-1 relationship with profile
     profile: Optional["FarmerProfile"] = Relationship(
@@ -38,7 +41,7 @@ class FarmerProfile(SQLModel, table=True):
     # Preferred language (default Hindi)
     preferred_language: str = Field(default="hi")
     
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=get_utc_now)
 
     user: Optional[User] = Relationship(back_populates="profile")
 
